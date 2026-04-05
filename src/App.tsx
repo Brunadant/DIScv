@@ -155,12 +155,17 @@ export default function App() {
     
     setIsExporting(true);
     try {
+      // Pequeno delay para garantir que tudo renderizou
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       const element = reportRef.current;
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
         logging: false,
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff',
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight
       });
       
       const imgData = canvas.toDataURL('image/png');
@@ -169,11 +174,13 @@ export default function App() {
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
       
+      // Se o conteúdo for maior que uma página, podemos precisar de lógica adicional,
+      // mas para um dashboard geralmente cabe em uma ou duas.
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`Relatorio_DISC_${selectedEmployee.name.replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
       console.error('Erro ao gerar PDF:', error);
-      alert('Ocorreu um erro ao gerar o PDF. Tente novamente.');
+      alert('Ocorreu um erro ao gerar o PDF. Tente usar a opção "Imprimir" e salvar como PDF do navegador caso o problema persista.');
     } finally {
       setIsExporting(false);
     }
@@ -846,31 +853,49 @@ function DiscQuestionnaire({ questions, onComplete }: { questions: DiscQuestion[
         ))}
       </div>
 
-      <div className="mt-8 flex gap-3">
-        <button
-          disabled={currentStep === 0}
-          onClick={() => setCurrentStep(prev => prev - 1)}
-          className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition-colors disabled:opacity-50"
-        >
-          Anterior
-        </button>
-        {currentStep === totalPages - 1 ? (
+      <div className="mt-8 flex flex-col gap-4">
+        <div className="flex gap-3">
           <button
-            disabled={!isPageComplete}
-            onClick={handleFinish}
-            className="flex-[2] py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition-colors shadow-lg shadow-green-100 disabled:opacity-50"
+            disabled={currentStep === 0}
+            onClick={() => setCurrentStep(prev => prev - 1)}
+            className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition-colors disabled:opacity-50"
           >
-            Finalizar Avaliação
+            Anterior
           </button>
-        ) : (
-          <button
-            disabled={!isPageComplete}
-            onClick={() => setCurrentStep(prev => prev + 1)}
-            className="flex-[2] py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors shadow-lg shadow-blue-100 disabled:opacity-50"
-          >
-            Próxima Página
-          </button>
-        )}
+          {currentStep === totalPages - 1 ? (
+            <button
+              disabled={!isPageComplete}
+              onClick={handleFinish}
+              className="flex-[2] py-4 bg-green-600 hover:bg-green-700 text-white font-black text-lg rounded-2xl transition-all shadow-xl shadow-green-200 disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
+            >
+              <CheckCircle2 size={24} />
+              FINALIZAR E GERAR RELATÓRIO
+            </button>
+          ) : (
+            <button
+              disabled={!isPageComplete}
+              onClick={() => setCurrentStep(prev => prev + 1)}
+              className="flex-[2] py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors shadow-lg shadow-blue-100 disabled:opacity-50"
+            >
+              Próxima Página
+            </button>
+          )}
+        </div>
+        
+        <div className="flex justify-center gap-1">
+          {Array.from({ length: totalPages }).map((_, i) => (
+            <div 
+              key={i}
+              className={cn(
+                "h-1.5 rounded-full transition-all",
+                i === currentStep ? "w-8 bg-blue-500" : "w-2 bg-slate-200"
+              )}
+            />
+          ))}
+        </div>
+        <p className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+          Página {currentStep + 1} de {totalPages}
+        </p>
       </div>
     </div>
   );
