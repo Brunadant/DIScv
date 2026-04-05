@@ -1185,22 +1185,50 @@ function QuestionsModal({ questions, onClose, onSave }: {
 }) {
   const [localQuestions, setLocalQuestions] = useState<DiscQuestion[]>([...questions]);
   const [newQuestion, setNewQuestion] = useState<Partial<DiscQuestion>>({ factor: 'D', text: '', interpretation: '', trait: '' });
+  const [editingId, setEditingId] = useState<string | null>(null);
 
-  const handleAdd = () => {
+  const handleAddOrUpdate = () => {
     if (!newQuestion.text || !newQuestion.interpretation) return;
-    const q: DiscQuestion = {
-      id: `${newQuestion.factor}${Date.now()}`,
-      factor: newQuestion.factor as ProfileFactor,
-      text: newQuestion.text,
-      interpretation: newQuestion.interpretation,
-      trait: newQuestion.trait
-    };
-    setLocalQuestions([...localQuestions, q]);
+    
+    if (editingId) {
+      // Update existing
+      setLocalQuestions(localQuestions.map(q => 
+        q.id === editingId 
+          ? { ...q, factor: newQuestion.factor as ProfileFactor, text: newQuestion.text!, interpretation: newQuestion.interpretation!, trait: newQuestion.trait } 
+          : q
+      ));
+      setEditingId(null);
+    } else {
+      // Add new
+      const q: DiscQuestion = {
+        id: `${newQuestion.factor}${Date.now()}`,
+        factor: newQuestion.factor as ProfileFactor,
+        text: newQuestion.text,
+        interpretation: newQuestion.interpretation,
+        trait: newQuestion.trait
+      };
+      setLocalQuestions([...localQuestions, q]);
+    }
+    
     setNewQuestion({ factor: 'D', text: '', interpretation: '', trait: '' });
+  };
+
+  const handleEdit = (q: DiscQuestion) => {
+    setEditingId(q.id);
+    setNewQuestion({
+      factor: q.factor,
+      text: q.text,
+      interpretation: q.interpretation,
+      trait: q.trait
+    });
   };
 
   const handleDelete = (id: string) => {
     setLocalQuestions(localQuestions.filter(q => q.id !== id));
+    if (editingId === id) {
+      setEditingId(null);
+      setNewQuestion({ factor: 'D', text: '', interpretation: '', trait: '' });
+    }
   };
 
   return (
@@ -1232,12 +1260,20 @@ function QuestionsModal({ questions, onClose, onSave }: {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Add New Question */}
-          <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100 space-y-4">
-            <h3 className="text-sm font-bold text-blue-700 uppercase tracking-wider">Adicionar Nova Pergunta</h3>
+          {/* Add/Edit Question */}
+          <div className={cn(
+            "p-6 rounded-2xl border space-y-4 transition-colors",
+            editingId ? "bg-amber-50 border-amber-100" : "bg-blue-50 border-blue-100"
+          )}>
+            <h3 className={cn(
+              "text-sm font-bold uppercase tracking-wider",
+              editingId ? "text-amber-700" : "text-blue-700"
+            )}>
+              {editingId ? 'Editar Pergunta' : 'Adicionar Nova Pergunta'}
+            </h3>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <select 
-                className="px-4 py-2 bg-white border border-blue-200 rounded-xl outline-none"
+                className="px-4 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-100"
                 value={newQuestion.factor}
                 onChange={e => setNewQuestion({ ...newQuestion, factor: e.target.value as ProfileFactor })}
               >
@@ -1248,35 +1284,42 @@ function QuestionsModal({ questions, onClose, onSave }: {
               </select>
               <input 
                 placeholder="Texto da pergunta..."
-                className="md:col-span-2 px-4 py-2 bg-white border border-blue-200 rounded-xl outline-none"
+                className="md:col-span-2 px-4 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-100"
                 value={newQuestion.text}
                 onChange={e => setNewQuestion({ ...newQuestion, text: e.target.value })}
               />
               <input 
                 placeholder="Interpretação..."
-                className="px-4 py-2 bg-white border border-blue-200 rounded-xl outline-none"
+                className="px-4 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-100"
                 value={newQuestion.interpretation}
                 onChange={e => setNewQuestion({ ...newQuestion, interpretation: e.target.value })}
               />
               <input 
                 placeholder="Traço/Competência (ex: Ousadia)..."
-                className="md:col-span-3 px-4 py-2 bg-white border border-blue-200 rounded-xl outline-none"
+                className="md:col-span-3 px-4 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-100"
                 value={newQuestion.trait}
                 onChange={e => setNewQuestion({ ...newQuestion, trait: e.target.value })}
               />
               <div className="flex gap-2">
                 <button 
-                  onClick={handleAdd}
-                  className="flex-1 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                  onClick={handleAddOrUpdate}
+                  className={cn(
+                    "flex-1 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2",
+                    editingId ? "bg-amber-600 hover:bg-amber-700" : "bg-blue-600 hover:bg-blue-700"
+                  )}
                 >
-                  <Plus size={18} /> Adicionar
+                  {editingId ? <Save size={18} /> : <Plus size={18} />}
+                  {editingId ? 'Atualizar' : 'Adicionar'}
                 </button>
                 <button 
-                  onClick={() => setNewQuestion({ factor: 'D', text: '', interpretation: '', trait: '' })}
-                  className="p-3 bg-white border border-blue-200 text-blue-600 rounded-xl hover:bg-blue-50 transition-colors"
+                  onClick={() => {
+                    setEditingId(null);
+                    setNewQuestion({ factor: 'D', text: '', interpretation: '', trait: '' });
+                  }}
+                  className="p-3 bg-white border border-slate-200 text-slate-400 rounded-xl hover:bg-slate-50 transition-colors"
                   title="Limpar campos"
                 >
-                  <Trash2 size={18} />
+                  <X size={18} />
                 </button>
               </div>
             </div>
@@ -1285,7 +1328,13 @@ function QuestionsModal({ questions, onClose, onSave }: {
           {/* List Questions */}
           <div className="space-y-3">
             {localQuestions.map(q => (
-              <div key={q.id} className="p-4 border border-slate-100 rounded-2xl hover:bg-slate-50 transition-colors flex items-center gap-4">
+              <div 
+                key={q.id} 
+                className={cn(
+                  "p-4 border rounded-2xl transition-all flex items-center gap-4",
+                  editingId === q.id ? "bg-amber-50 border-amber-200 shadow-sm" : "border-slate-100 hover:bg-slate-50"
+                )}
+              >
                 <div className={cn(
                   "w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs flex-shrink-0",
                   q.factor === 'D' ? "bg-red-500" :
@@ -1299,6 +1348,15 @@ function QuestionsModal({ questions, onClose, onSave }: {
                   <p className="text-[10px] text-slate-400 uppercase font-bold">{q.interpretation} • {q.trait || 'Sem traço'}</p>
                 </div>
                 <div className="flex gap-2">
+                  <button 
+                    onClick={() => handleEdit(q)}
+                    className={cn(
+                      "p-2 rounded-lg transition-all",
+                      editingId === q.id ? "text-amber-600 bg-amber-100" : "text-slate-400 hover:text-blue-600 hover:bg-blue-50"
+                    )}
+                  >
+                    <Edit size={16} />
+                  </button>
                   <button 
                     onClick={() => handleDelete(q.id)}
                     className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
