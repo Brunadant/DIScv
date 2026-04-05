@@ -26,8 +26,11 @@ import {
   Settings,
   User as UserIcon,
   Shield,
-  Lock
+  Lock,
+  Sparkles,
+  Loader2
 } from 'lucide-react';
+import { GoogleGenAI } from "@google/genai";
 import { 
   BarChart, 
   Bar, 
@@ -413,6 +416,8 @@ export default function App() {
                       <DiscResults 
                         assessment={selectedEmployee.assessment} 
                         questions={questions}
+                        employeeName={selectedEmployee.name}
+                        employeeRole={selectedEmployee.role}
                         onUpdateAssessment={(assessment) => {
                           handleUpdateEmployee({ ...selectedEmployee, assessment });
                         }}
@@ -871,9 +876,11 @@ function DiscQuestionnaire({ questions, onComplete }: { questions: DiscQuestion[
   );
 }
 
-function DiscResults({ assessment, questions, onUpdateAssessment, onRetake, onExportPDF, isExporting }: { 
+function DiscResults({ assessment, questions, employeeName, employeeRole, onUpdateAssessment, onRetake, onExportPDF, isExporting }: { 
   assessment: DiscAssessment, 
   questions: DiscQuestion[],
+  employeeName: string,
+  employeeRole: string,
   onUpdateAssessment: (a: DiscAssessment) => void,
   onRetake: () => void,
   onExportPDF: () => void,
@@ -900,6 +907,55 @@ function DiscResults({ assessment, questions, onUpdateAssessment, onRetake, onEx
 
   const predominantProfile = PROFILE_DESCRIPTIONS[assessment.predominant];
   const secondaryProfile = PROFILE_DESCRIPTIONS[assessment.secondary];
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+
+  const generateAIAnalysis = async () => {
+    setIsGeneratingAI(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const model = "gemini-3-flash-preview";
+      
+      const prompt = `
+        Analise o seguinte perfil comportamental DISC para um relatório profissional:
+        Nome: ${employeeName}
+        Cargo: ${employeeRole}
+        
+        Resultados DISC:
+        - Dominância (D): ${Math.round(assessment.scores.D)}%
+        - Influência (I): ${Math.round(assessment.scores.I)}%
+        - Estabilidade (S): ${Math.round(assessment.scores.S)}%
+        - Conformidade (C): ${Math.round(assessment.scores.C)}%
+        
+        Perfil Predominante: ${predominantProfile.name}
+        Perfil Secundário: ${secondaryProfile?.name || 'Nenhum'}
+        
+        Por favor, gere um texto profissional e humanizado para a seção de "Observações" do relatório. 
+        O texto deve incluir:
+        1. Uma síntese do perfil comportamental.
+        2. Como este perfil se comporta no ambiente de trabalho.
+        3. Sugestões de desenvolvimento e como a gestão pode melhor aproveitar este colaborador.
+        4. Tom de voz: Profissional, encorajador e analítico.
+        
+        Responda apenas com o texto da análise, sem introduções ou formatações extras.
+      `;
+
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+      });
+
+      const aiText = response.text;
+      if (aiText) {
+        setObservations(aiText);
+        onUpdateAssessment({ ...assessment, reportObservations: aiText });
+      }
+    } catch (error) {
+      console.error("Erro ao gerar análise de IA:", error);
+      alert("Não foi possível gerar a análise automática no momento.");
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
 
   const handleSaveObservations = () => {
     onUpdateAssessment({ ...assessment, reportObservations: observations });
@@ -1077,16 +1133,30 @@ function DiscResults({ assessment, questions, onUpdateAssessment, onRetake, onEx
 
       {/* Report Observations Section */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm print:break-inside-avoid">
-        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-          <Edit size={20} className="text-blue-500" />
-          Observações do Relatório
-        </h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <Edit size={20} className="text-blue-500" />
+            Observações do Relatório
+          </h3>
+          <button
+            onClick={generateAIAnalysis}
+            disabled={isGeneratingAI}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-xs font-bold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg shadow-blue-200 disabled:opacity-50 print:hidden"
+          >
+            {isGeneratingAI ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Sparkles size={14} />
+            )}
+            {isGeneratingAI ? 'Gerando Análise...' : 'Gerar Análise com IA'}
+          </button>
+        </div>
         <textarea
           value={observations}
           onChange={(e) => setObservations(e.target.value)}
           onBlur={handleSaveObservations}
-          placeholder="Adicione observações específicas para este relatório..."
-          className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all resize-none min-h-[120px] print:border-none print:bg-transparent print:p-0"
+          placeholder="Adicione observações específicas para este relatório ou use a IA para gerar uma análise automática..."
+          className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all resize-none min-h-[200px] print:border-none print:bg-transparent print:p-0"
         />
         <p className="text-[10px] text-slate-400 mt-2 print:hidden">As observações são salvas automaticamente ao sair do campo.</p>
       </div>
