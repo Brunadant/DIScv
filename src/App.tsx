@@ -171,18 +171,32 @@ export default function App() {
         logging: false,
         backgroundColor: '#ffffff',
         windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight
       });
       
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
       
-      // Se o conteúdo for maior que uma página, podemos precisar de lógica adicional,
-      // mas para um dashboard geralmente cabe em uma ou duas.
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      
+      const imgProps = pdf.getImageProperties(imgData);
+      const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      let heightLeft = imgHeight;
+      let position = 0;
+      
+      // Primeira página
+      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+      heightLeft -= pdfHeight;
+      
+      // Páginas subsequentes se necessário
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+        heightLeft -= pdfHeight;
+      }
+      
       pdf.save(`Relatorio_DISC_${selectedEmployee.name.replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
       console.error('Erro ao gerar PDF:', error);
@@ -1201,12 +1215,15 @@ function DiscResults({ assessment, questions, employeeName, employeeRole, onUpda
             {isGeneratingAI ? 'Gerando Análise...' : 'Gerar Análise com IA'}
           </button>
         </div>
+        <div className="hidden print:block whitespace-pre-wrap text-sm text-slate-700 min-h-[100px] leading-relaxed">
+          {observations || 'Nenhuma observação adicionada.'}
+        </div>
         <textarea
           value={observations}
           onChange={(e) => setObservations(e.target.value)}
           onBlur={handleSaveObservations}
           placeholder="Adicione observações específicas para este relatório ou use a IA para gerar uma análise automática..."
-          className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all resize-none min-h-[200px] print:border-none print:bg-transparent print:p-0"
+          className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none transition-all resize-none min-h-[200px] print:hidden"
         />
         <p className="text-[10px] text-slate-400 mt-2 print:hidden">As observações são salvas automaticamente ao sair do campo.</p>
       </div>
