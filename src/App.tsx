@@ -953,9 +953,12 @@ function DiscResults({ assessment, questions, employeeName, employeeRole, onUpda
   const generateAIAnalysis = async () => {
     setIsGeneratingAI(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const model = "gemini-3-flash-preview";
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
       
+      if (!process.env.GEMINI_API_KEY) {
+        throw new Error("Chave de API não encontrada. Verifique as configurações do projeto.");
+      }
+
       const prompt = `
         Analise o seguinte perfil comportamental DISC para um relatório profissional:
         Nome: ${employeeName}
@@ -981,7 +984,7 @@ function DiscResults({ assessment, questions, employeeName, employeeRole, onUpda
       `;
 
       const response = await ai.models.generateContent({
-        model: "gemini-flash-latest",
+        model: "gemini-3-flash-preview",
         contents: prompt,
       });
 
