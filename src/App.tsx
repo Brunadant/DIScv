@@ -72,7 +72,13 @@ export default function App() {
   const [isEditing, setIsEditing] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [isManagingQuestions, setIsManagingQuestions] = useState(false);
-  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void } | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{ 
+    isOpen: boolean; 
+    title: string; 
+    message: string; 
+    onConfirm: () => void;
+    onCancel: () => void;
+  } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('Todos');
   const reportRef = useRef<HTMLDivElement>(null);
@@ -180,7 +186,13 @@ export default function App() {
       pdf.save(`Relatorio_DISC_${selectedEmployee.name.replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
       console.error('Erro ao gerar PDF:', error);
-      alert('Ocorreu um erro ao gerar o PDF. Tente usar a opção "Imprimir" e salvar como PDF do navegador caso o problema persista.');
+      setConfirmModal({
+        isOpen: true,
+        title: 'Erro na Exportação',
+        message: 'Ocorreu um erro ao gerar o PDF. Tente usar a opção "Imprimir" e salvar como PDF do navegador caso o problema persista.',
+        onConfirm: () => setConfirmModal(null),
+        onCancel: () => setConfirmModal(null)
+      });
     } finally {
       setIsExporting(false);
     }
@@ -436,11 +448,13 @@ export default function App() {
                             onConfirm: () => {
                               handleUpdateEmployee({ ...selectedEmployee, assessment: undefined });
                               setConfirmModal(null);
-                            }
+                            },
+                            onCancel: () => setConfirmModal(null)
                           });
                         }}
                         onExportPDF={handleExportPDF}
                         isExporting={isExporting}
+                        setConfirmModal={setConfirmModal}
                       />
                     ) : (
                       <DiscQuestionnaire 
@@ -521,6 +535,7 @@ export default function App() {
             questions={questions}
             onClose={() => setIsManagingQuestions(false)}
             onSave={handleSaveQuestions}
+            setConfirmModal={setConfirmModal}
           />
         )}
         {confirmModal && confirmModal.isOpen && (
@@ -901,7 +916,7 @@ function DiscQuestionnaire({ questions, onComplete }: { questions: DiscQuestion[
   );
 }
 
-function DiscResults({ assessment, questions, employeeName, employeeRole, onUpdateAssessment, onRetake, onExportPDF, isExporting }: { 
+function DiscResults({ assessment, questions, employeeName, employeeRole, onUpdateAssessment, onRetake, onExportPDF, isExporting, setConfirmModal }: { 
   assessment: DiscAssessment, 
   questions: DiscQuestion[],
   employeeName: string,
@@ -909,7 +924,8 @@ function DiscResults({ assessment, questions, employeeName, employeeRole, onUpda
   onUpdateAssessment: (a: DiscAssessment) => void,
   onRetake: () => void,
   onExportPDF: () => void,
-  isExporting: boolean
+  isExporting: boolean,
+  setConfirmModal: (modal: any) => void
 }) {
   const [observations, setObservations] = useState(assessment.reportObservations || '');
 
@@ -946,10 +962,10 @@ function DiscResults({ assessment, questions, employeeName, employeeRole, onUpda
         Cargo: ${employeeRole}
         
         Resultados DISC:
-        - Dominância (D): ${Math.round(assessment.scores.D)}%
-        - Influência (I): ${Math.round(assessment.scores.I)}%
-        - Estabilidade (S): ${Math.round(assessment.scores.S)}%
-        - Conformidade (C): ${Math.round(assessment.scores.C)}%
+        - Dominância (D): ${Math.round(assessment.percentages.D)}%
+        - Influência (I): ${Math.round(assessment.percentages.I)}%
+        - Estabilidade (S): ${Math.round(assessment.percentages.S)}%
+        - Conformidade (C): ${Math.round(assessment.percentages.C)}%
         
         Perfil Predominante: ${predominantProfile.name}
         Perfil Secundário: ${secondaryProfile?.name || 'Nenhum'}
@@ -965,7 +981,7 @@ function DiscResults({ assessment, questions, employeeName, employeeRole, onUpda
       `;
 
       const response = await ai.models.generateContent({
-        model,
+        model: "gemini-flash-latest",
         contents: prompt,
       });
 
@@ -976,7 +992,13 @@ function DiscResults({ assessment, questions, employeeName, employeeRole, onUpda
       }
     } catch (error) {
       console.error("Erro ao gerar análise de IA:", error);
-      alert("Não foi possível gerar a análise automática no momento.");
+      setConfirmModal({
+        isOpen: true,
+        title: 'Erro na IA',
+        message: 'Não foi possível gerar a análise automática no momento. Verifique sua conexão ou tente novamente mais tarde.',
+        onConfirm: () => setConfirmModal(null),
+        onCancel: () => setConfirmModal(null)
+      });
     } finally {
       setIsGeneratingAI(false);
     }
@@ -1273,10 +1295,11 @@ function ConfirmModal({ title, message, onConfirm, onCancel }: {
   );
 }
 
-function QuestionsModal({ questions, onClose, onSave }: { 
+function QuestionsModal({ questions, onClose, onSave, setConfirmModal }: { 
   questions: DiscQuestion[], 
   onClose: () => void, 
-  onSave: (q: DiscQuestion[]) => void 
+  onSave: (q: DiscQuestion[]) => void,
+  setConfirmModal: (modal: any) => void
 }) {
   const [localQuestions, setLocalQuestions] = useState<DiscQuestion[]>([...questions]);
   const [newQuestion, setNewQuestion] = useState<Partial<DiscQuestion>>({ factor: 'D', text: '', interpretation: '', trait: '' });
@@ -1467,9 +1490,16 @@ function QuestionsModal({ questions, onClose, onSave }: {
         <div className="p-6 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row gap-3">
           <button 
             onClick={() => {
-              if (confirm('Deseja realmente restaurar as perguntas padrão? Isso apagará suas perguntas personalizadas.')) {
-                setLocalQuestions([...DEFAULT_QUESTIONS]);
-              }
+              setConfirmModal({
+                isOpen: true,
+                title: 'Restaurar Padrão',
+                message: 'Deseja realmente restaurar as perguntas padrão? Isso apagará suas perguntas personalizadas.',
+                onConfirm: () => {
+                  setLocalQuestions([...DEFAULT_QUESTIONS]);
+                  setConfirmModal(null);
+                },
+                onCancel: () => setConfirmModal(null)
+              });
             }}
             className="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
           >
